@@ -13,14 +13,18 @@ import math
 class ImageSplitterGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Image Splitter")
-        self.root.geometry("800x600")
+        
+        # Handle both real Tk root and wrapper objects
+        if hasattr(root, 'title'):
+            self.root.title("Image Splitter")
+        if hasattr(root, 'geometry'):
+            self.root.geometry("800x600")
         
         # Variables
-        self.image_path = tk.StringVar()
-        self.output_dir = tk.StringVar()
-        self.rows = tk.IntVar(value=2)
-        self.cols = tk.IntVar(value=2)
+        self.image_path = tk.StringVar(master=self.root)
+        self.output_dir = tk.StringVar(master=self.root)
+        self.rows = tk.IntVar(master=self.root, value=2)
+        self.cols = tk.IntVar(master=self.root, value=2)
         self.original_image = None
         self.preview_image = None
         
@@ -32,8 +36,10 @@ class ImageSplitterGUI:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        if hasattr(self.root, 'columnconfigure'):
+            self.root.columnconfigure(0, weight=1)
+        if hasattr(self.root, 'rowconfigure'):
+            self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(5, weight=1)
         
@@ -236,7 +242,8 @@ class ImageSplitterGUI:
                     # Update progress
                     piece_count += 1
                     self.progress['value'] = piece_count
-                    self.root.update_idletasks()
+                    if hasattr(self.root, 'update_idletasks'):
+                        self.root.update_idletasks()
             
             messagebox.showinfo("Success", f"Image split into {total_pieces} pieces successfully!\nSaved to: {self.output_dir.get()}")
             
