@@ -7,11 +7,12 @@ where each grayscale image becomes one channel (R, G, B, or A) of the final imag
 The output is saved as a PNG or TGA file.
 
 Usage:
-    python channel_packer.py <red_channel_image> <green_channel_image> <blue_channel_image> <output_image> [alpha_channel_image]
+    python channel_packer.py <red_channel_image> <green_channel_image> <blue_channel_image> <output_image> [--alpha <alpha_channel_image>] [--resolution WIDTHxHEIGHT]
 
 Example:
     python channel_packer.py image1.png image2.png image3.png packed_output.png
-    python channel_packer.py r.png g.png b.png output.tga alpha.png
+    python channel_packer.py r.png g.png b.png output.tga --alpha alpha.png
+    python channel_packer.py r.png g.png b.png output.png --resolution 1024x768
 """
 
 import sys
@@ -137,7 +138,7 @@ def resize_images_to_match(images):
     return resized_images
 
 
-def pack_channels(red_image, green_image, blue_image, output_path, alpha_image=None):
+def pack_channels(red_image, green_image, blue_image, output_path, alpha_image=None, output_resolution=None):
     """
     Pack three or four grayscale images into RGB or RGBA channels and save.
     
@@ -147,6 +148,7 @@ def pack_channels(red_image, green_image, blue_image, output_path, alpha_image=N
         blue_image (PIL.Image): Image for blue channel
         output_path (str): Path for the output file
         alpha_image (PIL.Image, optional): Image for alpha channel
+        output_resolution (tuple, optional): Desired output resolution as (width, height)
     """
     try:
         # Collect valid images
@@ -197,6 +199,11 @@ def pack_channels(red_image, green_image, blue_image, output_path, alpha_image=N
             rgb_array = np.stack([red_array, green_array, blue_array], axis=2)
             final_image = Image.fromarray(rgb_array, 'RGB')
         
+        # Resize to the specified output resolution if provided
+        if output_resolution:
+            final_image = final_image.resize(output_resolution, Image.Resampling.LANCZOS)
+            print(f"Resized to specified resolution: {output_resolution[0]}x{output_resolution[1]}")
+            
         # Determine output format based on extension
         file_ext = os.path.splitext(output_path)[1].lower()
         if file_ext == '.tga':
@@ -220,26 +227,40 @@ def pack_channels_old(red_image, green_image, blue_image, output_path):
     Pack three grayscale images into RGB channels and save as PNG.
     This is the old function kept for backward compatibility.
     """
-    pack_channels(red_image, green_image, blue_image, output_path)
+    pack_channels(red_image, green_image, blue_image, output_path, None, None)
 
 
 def main():
     """Main function to handle command line arguments and execute the packing."""
-    if len(sys.argv) != 5:
-        print("Usage: python channel_packer.py <red_channel> <green_channel> <blue_channel> <output.png>")
-        print("\nExample:")
-        print("python channel_packer.py image1.png image2.png image3.png packed_output.png")
-        print("\nDescription:")
-        print("- red_channel: Image to use for the red channel")
-        print("- green_channel: Image to use for the green channel")
-        print("- blue_channel: Image to use for the blue channel")
-        print("- output.png: Output filename (will be saved as PNG)")
-        sys.exit(1)
+    # Parse arguments
+    import argparse
     
-    red_path = sys.argv[1]
-    green_path = sys.argv[2]
-    blue_path = sys.argv[3]
-    output_path = sys.argv[4]
+    parser = argparse.ArgumentParser(description="Pack grayscale images into RGB/RGBA channels.")
+    parser.add_argument("red_channel", help="Image to use for the red channel")
+    parser.add_argument("green_channel", help="Image to use for the green channel")
+    parser.add_argument("blue_channel", help="Image to use for the blue channel")
+    parser.add_argument("output", help="Output filename")
+    parser.add_argument("--alpha", "-a", help="Optional image to use for the alpha channel")
+    parser.add_argument("--resolution", "-r", help="Output resolution in format WIDTHxHEIGHT (e.g., 1024x1024)")
+    
+    args = parser.parse_args()
+    
+    red_path = args.red_channel
+    green_path = args.green_channel
+    blue_path = args.blue_channel
+    output_path = args.output
+    alpha_path = args.alpha
+    
+    # Parse resolution if provided
+    output_resolution = None
+    if args.resolution:
+        try:
+            width, height = map(int, args.resolution.lower().split("x"))
+            output_resolution = (width, height)
+            print(f"Target output resolution: {width}x{height}")
+        except ValueError:
+            print(f"Error: Invalid resolution format '{args.resolution}'. Should be WIDTHxHEIGHT (e.g., 1024x1024)")
+            sys.exit(1)
     
     # Verify input files exist
     for path in [red_path, green_path, blue_path]:
@@ -247,15 +268,16 @@ def main():
             print(f"Error: Input file '{path}' does not exist.")
             sys.exit(1)
     
-    # Ensure output filename has .png extension
-    if not output_path.lower().endswith('.png'):
-        output_path += '.png'
+    if alpha_path and not os.path.exists(alpha_path):
+        print(f"Error: Alpha channel file '{alpha_path}' does not exist.")
+        sys.exit(1)
     
     # Load the grayscale images
     print("Loading images...")
     red_image = load_grayscale_image(red_path)
     green_image = load_grayscale_image(green_path)
     blue_image = load_grayscale_image(blue_path)
+    alpha_image = load_grayscale_image(alpha_path) if alpha_path else None
     
     # Check if all images loaded successfully
     if not all([red_image, green_image, blue_image]):
@@ -265,10 +287,12 @@ def main():
     print(f"Red channel: {red_image.width}x{red_image.height}")
     print(f"Green channel: {green_image.width}x{green_image.height}")
     print(f"Blue channel: {blue_image.width}x{blue_image.height}")
+    if alpha_image:
+        print(f"Alpha channel: {alpha_image.width}x{alpha_image.height}")
     
     # Pack the channels
     print("Packing channels...")
-    pack_channels(red_image, green_image, blue_image, output_path)
+    pack_channels(red_image, green_image, blue_image, output_path, alpha_image, output_resolution)
 
 
 if __name__ == "__main__":

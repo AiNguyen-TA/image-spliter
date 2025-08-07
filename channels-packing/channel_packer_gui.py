@@ -227,6 +227,15 @@ class ChannelPackerGUI:
         
         # Update button states
         self.update_button_states()
+        
+    def toggle_resolution_fields(self):
+        """Enable or disable resolution input fields based on checkbox state."""
+        if self.use_custom_resolution.get():
+            self.width_entry.configure(state="normal")
+            self.height_entry.configure(state="normal")
+        else:
+            self.width_entry.configure(state="disabled")
+            self.height_entry.configure(state="disabled")
     
     def create_widgets(self):
         """Create all GUI widgets."""
@@ -358,6 +367,35 @@ class ChannelPackerGUI:
         )
         browse_button.pack(side="right")
         
+        # Output resolution frame
+        resolution_frame = tk.Frame(output_frame)
+        resolution_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        tk.Label(resolution_frame, text="Output resolution:", font=("Arial", 10)).pack(side="left")
+        
+        # Resolution checkbox
+        self.use_custom_resolution = tk.BooleanVar(value=False)
+        self.resolution_checkbox = tk.Checkbutton(
+            resolution_frame, 
+            text="Custom resolution", 
+            variable=self.use_custom_resolution,
+            command=self.toggle_resolution_fields,
+            font=("Arial", 10)
+        )
+        self.resolution_checkbox.pack(side="left", padx=(10, 5))
+        
+        # Width entry
+        tk.Label(resolution_frame, text="Width:", font=("Arial", 10)).pack(side="left", padx=(10, 0))
+        self.width_var = tk.StringVar(value="1024")
+        self.width_entry = tk.Entry(resolution_frame, textvariable=self.width_var, font=("Arial", 10), width=6, state="disabled")
+        self.width_entry.pack(side="left", padx=(5, 0))
+        
+        # Height entry
+        tk.Label(resolution_frame, text="Height:", font=("Arial", 10)).pack(side="left", padx=(10, 0))
+        self.height_var = tk.StringVar(value="1024")
+        self.height_entry = tk.Entry(resolution_frame, textvariable=self.height_var, font=("Arial", 10), width=6, state="disabled")
+        self.height_entry.pack(side="left", padx=(5, 0))
+        
         # Control buttons
         button_frame = tk.Frame(self.root)
         button_frame.pack(pady=15)
@@ -407,7 +445,7 @@ class ChannelPackerGUI:
         # Instructions
         instructions = tk.Text(
             self.root,
-            height=5,
+            height=6,
             font=("Arial", 9),
             bg="#f8f9fa",
             fg="#2c3e50",
@@ -421,7 +459,8 @@ class ChannelPackerGUI:
             "2. Or drag/drop individual images to each channel manually\n"
             "3. Use 'Export All Channels' to save individual channel images as separate PNG files\n"
             "4. Use 'Pack Channels' to combine channels into a single RGB/RGBA image\n"
-            "5. Alpha channel is supported for .tga and .png output formats"
+            "5. Enable 'Custom resolution' to resize the output image to a specific width and height\n"
+            "6. Alpha channel is supported for .tga and .png output formats"
         )
         instructions.configure(state="disabled")
     
@@ -622,7 +661,17 @@ class ChannelPackerGUI:
             # Start progress bar
             self.progress.start()
             self.pack_button.configure(state="disabled")
-            self.status_label.configure(text="Packing images...", fg="#3498db")
+            
+            # Update status with resolution info if custom resolution is used
+            if self.use_custom_resolution.get():
+                try:
+                    width = int(self.width_var.get())
+                    height = int(self.height_var.get())
+                    self.status_label.configure(text=f"Packing images with resolution {width}x{height}...", fg="#3498db")
+                except ValueError:
+                    self.status_label.configure(text="Packing images...", fg="#3498db")
+            else:
+                self.status_label.configure(text="Packing images...", fg="#3498db")
             
             # Run packing in a separate thread to avoid freezing GUI
             thread = threading.Thread(target=self._pack_images_thread, args=(output_file,))
@@ -643,8 +692,27 @@ class ChannelPackerGUI:
             blue_image = self.blue_zone.get_channel_image()
             alpha_image = self.alpha_zone.get_channel_image()
             
-            # Pack channels
-            pack_channels(red_image, green_image, blue_image, output_file, alpha_image)
+            # Get custom resolution if enabled
+            output_resolution = None
+            if self.use_custom_resolution.get():
+                try:
+                    width = int(self.width_var.get())
+                    height = int(self.height_var.get())
+                    if width > 0 and height > 0:
+                        output_resolution = (width, height)
+                    else:
+                        self.root.after(0, messagebox.showerror, "Invalid Resolution", 
+                                         "Width and height must be positive integers.")
+                        self.root.after(0, self._pack_error, "Invalid resolution values")
+                        return
+                except ValueError:
+                    self.root.after(0, messagebox.showerror, "Invalid Resolution", 
+                                     "Width and height must be valid integers.")
+                    self.root.after(0, self._pack_error, "Invalid resolution format")
+                    return
+            
+            # Pack channels with optional resolution
+            pack_channels(red_image, green_image, blue_image, output_file, alpha_image, output_resolution)
             
             # Update GUI in main thread
             self.root.after(0, self._pack_complete, output_file)

@@ -1,6 +1,7 @@
 # Core requirements for Image Utilities
 Pillow>=9.0.0
 tkinterdnd2>=0.3.0
+customTkinter
 
 # Required for channel packing functionality
 numpy>=1.21.0
